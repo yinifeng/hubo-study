@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="test">
+
+	<!-- 
+		#{id} 占位符
+	 -->
+	<select id="findUserById" parameterType="int" resultType="com.hubo.mybatis.pojo.User">
+		SELECT * FROM USER WHERE ID=#{id}
+	</select>
+	
+	<!-- 
+		使用${}拼接sql，会有sql注入隐患
+		${value}:接收输入参数的内容，如果传入类型是简单类型，${}中只能使用value
+	 -->
+	<select id="findUserByName" parameterType="java.lang.String" resultType="com.hubo.mybatis.pojo.User">
+		SELECT * FROM USER WHERE username LIKE '%${value}%';
+	</select>
+	
+	<!-- 插入数据 -->
+	<insert id="insertUser" parameterType="com.hubo.mybatis.pojo.User">
+	
+		<!-- 
+			获取插入数据后的主键
+			1、mysql自增    相对insert语句after
+			2、oracle 序列     select 序列.nextval()  相对insert语句 before
+		 -->
+		<selectKey keyProperty="id" order="AFTER" resultType="java.lang.Integer">
+			select LAST_INSERT_ID()
+		</selectKey>
+		
+		INSERT INTO USER(username,birthday,sex,address) VALUE (#{username},#{birthday},#{sex},#{address})
+	</insert>
+	
+	<!-- 删除数据 -->
+	<delete id="deleteUser" parameterType="java.lang.Integer">
+		delete from user where id=#{id}
+	</delete>
+	
+	<!-- 更新数据 -->
+	<update id="updateUser" parameterType="com.hubo.mybatis.pojo.User">
+		UPDATE USER SET username=#{username},birthday=#{birthday},sex=#{sex},address=#{address} WHERE id=#{id}
+	</update>
+</mapper>

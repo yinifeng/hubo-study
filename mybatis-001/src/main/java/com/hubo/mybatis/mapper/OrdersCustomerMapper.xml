@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hubo.mybatis.mapper.OrdersCustomerMapper">
+
+	<resultMap type="com.hubo.mybatis.pojo.Orders" id="ordersMap">
+
+		<id column="id" property="id" />
+		<result column="user_id" property="userId" />
+		<result column="number" property="number" />
+		<result column="createtime" property="createTime" />
+		<result column="note" property="note" />
+		<association property="user" javaType="com.hubo.mybatis.pojo.User">
+			<result column="username" property="username" />
+			<result column="sex" property="sex" />
+			<result column="address" property="address" />
+		</association>
+
+	</resultMap>
+
+	<!-- 查询订单的用户及订单明细信息 可以用继承简写 -->
+	<resultMap type="com.hubo.mybatis.pojo.Orders" id="ordersUserAndDetail"
+		extends="ordersMap">
+		<!-- 订单信息 -->
+		<!-- <id column="id" property="id" /> <result column="user_id" property="userId" 
+			/> <result column="number" property="number" /> <result column="createtime" 
+			property="createTime" /> <result column="note" property="note" /> -->
+		<!-- 用户信息 -->
+		<!-- <association property="user" javaType="com.hubo.mybatis.pojo.User"> 
+			<result column="username" property="username" /> <result column="sex" property="sex" 
+			/> <result column="address" property="address" /> </association> -->
+		<!-- 订单明细信息 -->
+		<!-- collection:映射集合属性 ofType:集合的类型 -->
+		<collection property="orderDetails" ofType="com.hubo.mybatis.pojo.OrderDetail">
+			<!-- 订单明细的唯一标识 必须加 -->
+			<id column="orderdetail_id" property="id" />
+			<result column="items_id" property="itemsId" />
+			<result column="items_num" property="itemsNum" />
+		</collection>
+
+	</resultMap>
+	
+	<!-- 用户购买商品 -->
+	<resultMap type="com.hubo.mybatis.pojo.User" id="UserAndItems">
+		<!-- 用户信息 -->
+		<id column="users_id" property="id" />
+		<result column="username" property="username" />
+		<result column="sex" property="sex" />
+		<result column="address" property="address" />
+		<!-- 订单信息 
+			一个用户对应多个订单
+		-->
+		<collection property="orders" ofType="com.hubo.mybatis.pojo.Orders">
+			<id column="id" property="id" />
+			<result column="user_id" property="userId" />
+			<result column="number" property="number" />
+			<result column="createtime" property="createTime" />
+			<result column="note" property="note" />
+			<!-- 订单明细信息 
+				一个订单对应多个订单明细
+			-->
+			<collection property="orderDetails" ofType="com.hubo.mybatis.pojo.OrderDetail">
+				<!-- 订单明细的唯一标识 必须加 -->
+				<id column="orderdetail_id" property="id" />
+				<result column="items_id" property="itemsId" />
+				<result column="items_num" property="itemsNum" />
+				<!--  商品信息  一个订单明细 对应一条商品-->
+				<association property="items" javaType="com.hubo.mybatis.pojo.Items">
+					<result column="item_name" property="name"/>
+					<result column="item_price" property="price"/>
+				</association>
+			</collection>
+			
+		</collection>
+		
+		
+	
+	</resultMap>
+
+	<select id="findOrders" resultType="com.hubo.mybatis.pojo.OrdersCustomer">
+		SELECT
+		o.*, u.username,
+		u.sex,
+		u.address
+		FROM
+		orders o,
+		USER u
+		WHERE
+		o.user_id = u.id
+	</select>
+
+	<!-- 利用组合 返回resultMap -->
+	<select id="findOrdersResultMap" resultMap="ordersMap">
+		SELECT
+		o.*,
+		u.username,
+		u.sex,
+		u.address
+		FROM
+		orders o,
+		USER u
+		WHERE
+		o.user_id =u.id
+	</select>
+
+	<!-- 一对多查询 查询订单关联的用户及订单明细 -->
+	<select id="findOdersUserAndDetail" resultMap="ordersUserAndDetail">
+		SELECT
+		o.*,
+		u.username,
+		u.sex,
+		u.address,
+		ot.id orderdetail_id,
+		ot.items_id,
+		ot.items_num
+		FROM
+		orders o,
+		USER u,
+		orderdetail ot
+		WHERE
+		o.user_id = u.id
+		AND o.id = ot.orders_id
+	</select>
+
+	<!-- 查询用户 购买 的商品 
+	User 对象 添加 List<Orders> 
+	Orders 对象添加 List<OrderDetail>
+	 OrderDetail 对象添加 Items
+	 
+	 多个用户 对应 多个商品 
+	  -->
+	<select id="findUserAndItems" resultMap="UserAndItems">
+		SELECT
+		o.*, u.username,
+		u.id users_id,
+		u.sex,
+		u.address,
+		ot.id orderdetail_id,
+		ot.items_id,
+		ot.items_num,
+		i. NAME item_name,
+		i.price item_price
+		FROM
+		orders o,
+		USER u,
+		orderdetail ot,
+		items i
+		WHERE
+		o.user_id = u.id
+		AND o.id = ot.orders_id
+		AND ot.items_id = i.id
+
+	</select>
+</mapper>    

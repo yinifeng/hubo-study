@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns="http://java.sun.com/xml/ns/javaee"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
+	id="WebApp_ID" version="2.5">
+	
+	<!-- 当前web应用的全局参数 -->
+	<context-param>
+		<param-name>driver</param-name>
+		<param-value>jdbc.mysql.driver</param-value>
+	</context-param>
+	<context-param>
+		<param-name>jdbcUrl</param-name>
+		<param-value>jdbc://javaWeb</param-value>
+	</context-param>
+	
+	
+	<!-- 配置Servlet -->
+	<servlet>
+		<servlet-name>helloServlet</servlet-name>
+		<servlet-class>com.hubo.servlet.helloworld.HelloServlet</servlet-class>
+		<!-- 设置初始化参数 -->
+		<init-param>
+			<!-- 参数名 -->
+			<param-name>user</param-name>
+			<!-- 参数值 -->
+			<param-value>root</param-value>
+		</init-param>
+		<init-param>
+			<param-name>password</param-name>
+			<param-value>123456</param-value>
+		</init-param>
+		
+		<!-- 指定Servlet的加载时机 启动服务器立即加载此Serlvet  -->
+		<load-on-startup>1</load-on-startup>
+	</servlet>
+	
+	<servlet-mapping>
+		<servlet-name>helloServlet</servlet-name>
+		<url-pattern>/hello</url-pattern>
+	</servlet-mapping>
+	
+	<servlet>
+		<servlet-name>login</servlet-name>
+		<servlet-class>com.hubo.servlet.helloworld.LoginServlet</servlet-class>
+	</servlet>
+	<servlet-mapping>
+		<servlet-name>login</servlet-name>
+		<url-pattern>/longinServlet</url-pattern>
+	</servlet-mapping>
+</web-app>

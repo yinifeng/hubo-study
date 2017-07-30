@@ -1,0 +1,8 @@
+/.metadata
+/RemoteSystemsTempFiles
+/.git
+*/.settings
+*/target
+*/.classpath
+*/.gitignore
+*/.project
