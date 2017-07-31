@@ -58,6 +58,12 @@ public class ProxyDemo1 {
 		proxy2.add("hbb");
 		System.out.println(proxy2.size());
 		
+		System.out.println("3------抽象代理 方式  --------");
+		Collection arr=new ArrayList();
+		Collection proxy3 = (Collection)getProxy(arr,new MyAdvice());
+		proxy3.add("abc");
+		
+		
 	}
 
 	private static void lookConstructor(Constructor<?>[] constructors) {
@@ -91,4 +97,24 @@ public class ProxyDemo1 {
 			System.out.println(sb.toString());
 		}
 	}
+	
+	private static Object getProxy(final Object obj,final Advice advice){
+		Object proxy2=Proxy.newProxyInstance(obj.getClass().getClassLoader(),
+				obj.getClass().getInterfaces(),
+				new InvocationHandler() {
+					//每次调用代理对象的方法都会执行InvocationHandler 的invoke方法
+					public Object invoke(Object proxy, Method method, Object[] args)
+							throws Throwable {
+						// TODO Auto-generated method stub
+						advice.beforeMethod(method);
+						Object returnValue=method.invoke(obj, args);
+						advice.afterMethod(method,returnValue);
+						return returnValue;
+					}
+				});
+		
+		return proxy2;
+	}
+	
+	
 }
