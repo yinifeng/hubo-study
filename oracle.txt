@@ -1,0 +1,220 @@
+Oracle开发规范
+
+ 
+目录
+查询语句/SP规范	3
+表格及索引规范	8
+
+
+ 
+查询语句/SP规范
+1.	尽量避免在查询条件中使用非SARG运算符
+在筛选条件中, 使用SARG运算符, 包括=, > , <, >=, <=, IN, BETWEEN, LIKE 等, 尽量避免使用非SARG运算符，Oracle很可能不使用该字段上的索引，其中非SARG运算符包括NOT， <>， NOT EXISTS, NOT IN, NOT LIKE和内部函数。或者对字段先计算再比较，也极可能导致不使用索引。
+举例说明：
+……
+SELECT  ……
+FROM	FGAuditRoom AS 
+          JOIN  
+          FGOrders AS 
+          ON c.OrderID = d.OrderID  
+          LEFT JOIN  
+          FGAuditRoomOther AS other 
+          ON other.FGID = d.FGID  
+          WHERE nvl(c.GetOrderDate,c.NoShowAuditDate) BETWEEN '2014-07-01' AND '2014-08-09'  ……
+执行计划显示并未走到NoShowAuditDate的索引上，而是用了主键索引扫描：
+这里可以将此查询分为两条查询语句并将结果做UNION。
+
+2.	避免在索引列上使用函数
+在查询条件的索引列上使用函数，Oracle肯定不会走索引，此时查询将走全表扫描。应避免在查询条件的索引列上使用函数。
+举例说明：
+select * from dept where substr(dname,1,5)='aaa';
+
+Execution Plan
+----------------------------------------------------------
+   0      SELECT STATEMENT Optimizer=CHOOSE
+   1    0   TABLE ACCESS (FULL) OF 'DEPT'
+如果一个 SQL 语句的 WHERE 子句中使用了函数，那么建立相应的函数索引（function-based index）是提高数据访问性能的有效机制。表达式（expression）的结果经过计算后将被存储在索引中。但是当执行 INSERT 和UPDATE 语句时，Oracle 需要进行函数运算以便维护索引。
+
+3.	使用绑定变量实现参数化查询
+为了减少oracle硬解析所造成的大量CPU消耗，采用绑定变量使得每次提交的sql语句都完全一样，使oracle可以重复利用执行计划；参数化查询可以减少sql语句重编译的次数和时间，减少数据库服务器的CPU消耗及sql语句的执行时间及消耗。
+select RL.STEPSERIALNO,
+       RL.SERIALNO,
+       RL.NODEID,
+       RL.NODENAME,
+       RL.NODEVALUE,
+       RL.NODEOUTCOME,
+       RL.NODEMESSAGE,
+       RL.TIMECONSUMED,
+       RL.LOGTYPE,
+       RL.LOGID
+  from RS_LOGPATH RL
+where RL.SERIALNO = 'RL20170731033179'
+order by to_number(RL.STEPSERIALNO)
+
+4.	防止SQL注入
+SQL注入，通过把SQL命令插入到Web表单或域名或页面请求的查询字符串中，执行恶意SQL命令。
+为了防范SQL注入，开发需要对用户输入及权限进行校验，可以通过正则表达式等；不用使用动态拼接sql，通过参数化的sql查询及存储过程来查询获取数据。
+
+5.	尽量避免在有索引的字符字段上，通过非打头字母搜索
+如果是使用like进行查询的话，尽量避免在通过非打头字符搜索，使用非打头字母搜索不使用该字段上的索引，比如：like 'a%' 使用索引，like '%a' 不使用索引。
+
+6.	EXISTS vs IN
+对于外表是大表的情况适合用in，对于外表是小表的情况适合用exists
+Exists对外表做loop循环，每次loop循环对内表进行查询；in是把外表和内表做hash join，更适合内外表都很大的情况。
+
+7.	对于NOT IN, NOT EXISTS，通过外链接实现
+对于NOT IN, NOT EXISTS，考虑通过外连接，并判断为空来实现，连接的查询条件通过索引查找。
+
+8.	若要使用NOT IN, NOT EXISTS, 选择NOT EXIST，尽量避免NOT IN
+尽量少用not exist/not in写法；如果一定要用时，尽量选择not exist，not in可能用不到索引，not exist相对效率更高，速度更快。
+
+9.	尽量避免使用OR运算符
+对于OR运算符，通常会使用全表扫描，考虑改写成in子句，或者分解成多个查询用UNION/UNION ALL来实现，这里要确认查询能走到索引并返回较少的结果集。
+
+10.	UNION ALL性能上优于UNION
+UNION/UNION ALL，UNION会对联合的表格返回的结果集，做排序和去重复的操作Sort(Distinct…)，会对性能有一定影响，如果返回结果集中没有重复记录，应使用UNION ALL。
+
+11.	避免使用SELECT嵌套
+尽量不用SELECT嵌套，如select … from tb1, (select …from tbl2)…，尽量把select的嵌套转化为连接的方式，如select … from tb1, tb2 …。
+
+12.	同样查询语句除了参数外要完全一样以重用执行计划
+为了让执行计划重用，必须把同样的查询语句写得完全一样，这样Oracle才会认为它们是相同的语句，而重用执行计划。.
+
+13.	访问数据分布极不平均表格的查询或SP，考虑不使用绑定变量
+在存储过程或查询中，访问了一张数据分布很不平均的表格，当使用绑定变量时，由于数据分布不均匀，导致非最优的执行计划被重用，这样往往会让存储过程或查询使用了次优甚至于较差的执行计划上，造成High CPU及大量IO Read等问题。
+
+举例说明：
+以下语句SQL语句使用了绑定变量，错误估计了查询返回的行数，而选择了一个错误的执行计划，导致了查询执行时间很长，且导致了大量IO操作；Ord_operations有超过１亿条数据，对于这个查询最快的方式，是先在ord_orders上通过UID返回记录，然后通过取到的order_id到ord_operations表上通过其上的OrderID索引进行index seek。
+SELECT op.OperateID, oo.OrderID,op.OperateTime,op.OperateType,op.OperateDesc,op.OperateType1 
+FROM ord_orders oo
+INNER JOIN ord_operatetime op ON oo.orderid=op.orderid 
+WHERE op.OperateTime>:1  AND  oo.UID=:2
+
+在不使用绑定变量的情况下，
+SELECT op.OperateID, oo.OrderID,op.OperateTime,op.OperateType,op.OperateDesc,op.OperateType1 
+FROM ord_orders oo
+INNER JOIN ord_operatetime op ON oo.orderid=op.orderid 
+WHERE  op.OperateTime > '2014-08-15 00:00:00' and oo.UID ='obkwingon'
+order by oo.OrderID,op.OperateID
+
+走上了正确的执行计划。
+
+14.	做JOIN操作，JOIN的查询条件上要有索引
+对于Joins的使用，在连接的表中，若表的记录数很多，关联的字段上要建立索引，例如：A join B on A.Col1 = B.Col1，A表记录数很多时，在A表的Col1上建立索引。
+在Oracle中，连接的实现包括Nested Loops, Sort Merge Join 以及Hash Join三种物理运算符。
+对于Nested Loops，被连接的数据子集较小的情况，嵌套循环连接是个较好的选择。Nested loop一般用在连接的表中有索引，并且索引选择性较好的时候.
+
+对于Hash Join，是CBO 做大数据集连接时的常用方式，优化器使用两个表中较小的表利用连接键在内存中建立散列表，然后扫描较大的表并探测散列表，找出与散列表匹配的行。
+
+对于Sort Merge Join，Oracle先将关联表的关联列各自做排序，然后从各自的排序表中抽取数据，到另一个排序表中做匹配。仅适用于数据源已经排好序的情况下，能达到更好的性能。
+
+15.	用truncate代替delete完成全表数据清理
+当删除表中的记录时,在通常情况下, 回滚段(rollback segments ) 用来存放可以被恢复的信息。如果你没有COMMIT事务,ORACLE会将数据恢复到删除之前的状态；而当运用TRUNCATE时, 回滚段不再存放任何可被恢复的信息.当命令运行后,数据不能被恢复.因此很少的资源被调用,执行时间也会很短。
+
+16.	避免使用Select *
+在查询时尽量只返回需要的字段，若使用Select *，且此表格包含了Blob或NVarchar等大数据字段，会造成很大的Read IO，并占用大量带宽；而且，当你仅需要返回表的一些字段，同时在这些字段上建了覆盖索引，若使用Select *会阻止Oracle使用在这些字段上的覆盖索引。
+
+17.	尽量避免使用游标
+不要使用游标，可以通过Create global temporary table… 及Insert…into…到临时表来实现。游标造成的问题有很多，比如延长锁问题，无法缓存执行计划以及加大内存与CPU开销问题，同时性能也很差。
+
+18.	尽量避免使用触发器
+不要使用触发器(Trigger), 触发器对更新/插入/删除的性能影像很大，在存储过程中实现触发器逻辑。
+
+19.	根据实际情况选择使用临时表
+在查询语句中，使用临时表，临时表具有统计信息，可以在临时表上建立索引。多表关联时、很多类似的sql语句循环执行重复使用时、复杂的查询及逻辑运算时，可以使用临时表。
+
+20.	复杂语句通过多个简单语句实现
+用多个简单语句代替一个复杂语句；对于复杂的语句，可以分拆成多条语句，将中间结果存入临时表中。
+
+21.	考虑通过物化视图解决多表连接问题
+若多张表常常要被联合Join，而且返回里面某一些字段，考虑用物化视图(materialized view)来实现，Oracle会自动与视图中访问到的表格数据保持一致，物化视图对查询的性能有很大帮助，可以大量减少IO和执行时间。而且，对于数据聚合（SUM, Average 等）查询或高成本的联接来说，利用物化视图可以显著地提高性能。Oracle物化视图支持2种刷新模式，一种on demand，另一种是on commit；对于on commit模式对物化视图基础表的修改需要更新物化视图，从而降低了对基础表修改的性能。
+举例说明：
+--如何创建索引视图
+create materialized view mv_stu refresh fast on commit as select * from student;
+
+22.	也可考虑通过字段冗余解决多表连接问题
+表格连接的数量，对于大表格间的连接，性能会比较差，也可以考虑通过降低范式级别，保存冗余数据列，以减少表格的连接数量。
+相对于物化视图，冗余需要改变已有的表结构，而物化视图则不需要。
+
+23.	查询条件放在Outer Join的ON/WHERE子句产生不同结果
+对于Inner Join, 把条件放在WHERE or ON子句从性能及返回结果没有差异。但对于Outer Join，则会返回不同的结果集。
+例如：有两张表Students和Grades,
+语句1：
+select name , grades.grade as eng_grade
+from students left outer join grades on students.id = grades.student_id
+where grades.subject = 'English'
+语句2：
+select name , grades.grade as eng_grade
+from students left outer join grades on students.id = grades.student_id and grades.subject = 'English'
+语句1 仅返回那些学过英语的学生；语句2 返回所有学生，他们的英语评分或者NULL。 
+
+24.	尽量避免返回大结果集
+尽量避免返回大的结果集，返回大量结果集会耗费大量CPU，IO及网络带宽。若需要大的结果集是，可以采用分页查询，控制每次查询访问和返回的记录数。
+
+25.	在事务中按统一顺序访问数据库对象
+为了避免死锁，程序中按同一顺序来访问数据库对象。若所有并发事物按同一顺序访问对象，可以大大降低死锁的可能性。
+比如：在事务1中 select表1，update表2；事务2中 update表2，select表1；这样容易造成死锁。
+
+26.	保持事物简短
+保持事务简短，事务执行时间越长，持有锁的时间也就越长，造成死锁的概率也越高。这和事务隔离级别相关，若设置为Repeated Read/Serializable，共享锁会持续到事务结束才释放。
+
+27.	使用较低的事务隔离级别以减少阻塞和死锁
+使用较低的事务隔离级别。这样共享锁的持有时间更短，从而减少阻塞和死锁。Oracle中缺省的事务隔离级别为Read Committed。
+
+ 
+表格及索引规范
+28.	表的命名规则
+表的命名采用英文与下划线组合的命名规则，表名的长度一般不允许超过20个字符。要求使用英文，不能使得拼音，英文单词的字母要求大写，多个单词间用下划线连接。
+
+29.	字段的命名规则
+字段命名采用英文与下划线组合, 表中字段的命名长度不应该超过20个字节，英文单词的字母要求大写，多个单词间用下划线连接，"_"。采用的英文单词应尽量为常用单词，英文单词过长时，可以采用适当的简写(一般是前4个字符)，复杂的词组取各个单词的首字母拼成一个简写单词。
+
+30.	每张表格要建立主键索引
+每张表格上要有主键，以实现数据完整性约束。
+
+31.	每张表格要建立聚集索引
+每张表格上建立聚集索引，若创建了主键约束，聚集索引被自动创建。聚集索引要创建在很少重复值的字段上，这样有更高的可选择性。
+
+32.	外键对更新和插入性能有影响
+若表上建有外键，对表格上的更新和插入需要进行约束检查，从而影响性能。
+
+33.	去除无用索引，控制索引数目
+去除无用索引，若一张表上的索引数目过多，会增加很多的编译时间，将每张表上的索引数目控制在10个以内。
+
+34.	索引查询数据，不超过全表20%
+通过索引查找数据，行数一般不超过全表20%；否则采用全表扫描方式消耗更低。
+
+35.	对于大表进行分区，并建立分区索引
+对于大的表格要进行分区，分区操作将表和索引分在多个分区，Oracle Optimizer将查询定位到具体的分区上，而不是整张表，同时对于表格里旧数据的归档，也可以通过分区切换实现快速的替换，同时也可以避免在索引B-Tree上的争用。
+数据具有明显的范围/列表属性，且经常使用范围/列表条件查询的表，采用范围分区；数据不具有明显的范围/列表属性，可以采用hash分区。
+查询条件中要带入在分区字段上的过滤，这样才能有效利用分区。
+对于数据清理，也可以通过Drop分区实现秒级删除大量数据；同时可以通过交换分区实现数据归档。
+
+36.	索引要建立在重复值少的字段上
+在创建索引时，索引要建在重复值少的字段上，且第一个字段才在统计信息中有其数据分布情况 (直方图)，所以创建联合索引时要注意尽量将重复值最少的字段放在索引的首字段。若索引建在重复数据很多的字段上，可选择性会很差，查询会走不到此索引上。
+
+37.	数据量大、重复值很多、DML操作很少的列建立位图索引
+对于列的distinct value很少，且数据量较大，而且DML操作较少的列上选择使用位图索引，效率更高。
+
+38.	非聚集索引要覆盖查询的条件
+非聚集索引要覆盖查询的条件，比如：Select * from test1 where col1=’xxx’ and col2 = 5，索引建立在col1和col2上。
+
+39.	加上复合索引的首字段作为查询条件
+对于在多个字段上建立复合索引的情况下，若使用第二个或以后的字段作为查询条件，很可能会不会走到此索引。所以在查询条件中尽量加入索引的首字段作为条件。
+举例说明：
+在VendorRoomPrice表上，有websiteid, hotelid, baseroomid等字段，原来的表上在websiteid及hotelid上建立了一个非聚集索引，在运行以下语句是，计划走了此索引上的index scan，访问了大量数据，查询要经过19s才能结束。
+select * from VendorRoomPrice where hotelid = <Hotel ID>
+在此张表上hotelid, baseroomid加了一个非聚集索引后，此查询走到了此索引上，仅用时107ms就结束了，其中CPU时间仅为16ms。
+
+40.	根据优先顺序创建索引
+创建索引时，考虑以下的优先顺序，WHERE/JOIN>ORDER BY>SELECT。Oracle在生成执行计划时，优先考虑在SARG条件中指定的字段。
+
+41.	反向索引不适合于表上使用>, >=, <, <=范围查询
+当查询一段范围的数据时，反向索引将不会被使用，因为键值不是连续排列的，CBO会选择全表扫描。
+
+42.	尽量不采用函数索引
+尽量不采用函数索引，函数索引会在insert以及select时多一次函数计算的消耗。
+
+43.	LOB对象，使用CLOB/BLOB
+建议使用CLOB/BLOB，不使用LONG/RAW/LONG RAW；CLOB/BLOB以高效、随机及分段操作的方式存取数据
+
