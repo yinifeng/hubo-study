@@ -1,0 +1,227 @@
+package com.cpic.p17.kb.listen;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.stereotype.Service;
+
+import com.cpic.p17.kb.service.ArticleIndexService;
+
+/**
+ * 监听并创建索引
+ * 
+ * @author dongfeng.zhang
+ * @author c_huoshengyu-001
+ * @version 1.0
+ */
+@Service
+@DependsOn({ "articleIndexServiceImpl" })
+public class ScanIndexListenImpl implements ScanIndexListen {
+	/**
+	 * Logger for this class
+	 */
+	private static final Logger logger = LoggerFactory.getLogger(ScanIndexListenImpl.class);
+
+	private boolean running = true;
+	@Autowired
+	private ArticleIndexService articleIndexService;
+	private ExecutorService executor = Executors.newSingleThreadExecutor();
+
+	@PostConstruct
+	public void startListen() {
+		executor.execute(new Runnable() {
+			public void run() {
+				try {
+					Thread.sleep(300000);
+				} catch (InterruptedException ex) {
+					logger.error("scan index listen sleep", ex);
+				}
+				while (running) {
+					try {
+						articleIndexService.indexNew();
+					} catch (Exception ex) {
+						logger.error("本次索引失败：", ex);
+					}
+					try {
+						Thread.sleep(10000);
+					} catch (Exception ex) {
+						logger.error("scan index listen sleep", ex);
+					}
+				}
+			}
+		});
+	}
+
+	@PreDestroy
+	public void stopListen() {
+		if (executor != null) {
+			running = false;
+			executor.shutdown();
+		}
+	}
+}
+
+
+
+public class QueryCallWebservice implements Callable<Response> {
+
+	public Request request;
+	public Invoker invoker;
+
+	public QueryCallWebservice(Request request,Invoker invoker) {
+		this.request = request;
+		this.invoker=invoker;
+	}
+	@Override
+	public Response call() {
+		Response response=(Response) invoker.doRequest(request);
+		return response;
+	}
+	
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+@Service
+public class PolicyThreadPoolExecutor {
+	
+	public ExecutorService threadPool;
+	public int MAX_THREADS ;
+	public int MIN_POOLSIZE ;
+	public int MAX_POOLSIZE ;
+	public int QUEUE_SIZE ;
+	public int IDLE_THREAD_KEEP_ALIVE ;
+	static Logger logger = LoggerFactory.getLogger(PolicyThreadPoolExecutor.class);
+	/**
+	 * 关闭内部线程池，调用后实际组件实例不再可用
+	 */
+	@PreDestroy
+	public void shutDown() {
+		logger.info("threadpool shutdown called");
+		this.threadPool.shutdown();		
+	}
+
+	@PostConstruct
+	public void afterPropertiesSet() throws Exception {
+		logger.debug("PolicyThreadPoolExecutor afterPropertiesSet 调用开始");
+		CodeEntry dic =new CodeEntry();
+		 dic = AppContext.getDic(CommonConstant.THREAD_POOL_CA,CodeContext.THREAD_POOL , AppContext.SYS_TYPE_LIFE);//写死寿险2
+		if(dic==null){
+			MAX_THREADS = 5;
+			MIN_POOLSIZE = 5;
+			MAX_POOLSIZE = 30;
+			QUEUE_SIZE = 5;
+			IDLE_THREAD_KEEP_ALIVE = 5;
+		}else{
+			MAX_THREADS = Integer.parseInt(dic.getExtProp1());
+			MIN_POOLSIZE = Integer.parseInt(dic.getExtProp2());
+			MAX_POOLSIZE = Integer.parseInt(dic.getExtProp3());
+			QUEUE_SIZE = Integer.parseInt(dic.getExtProp4());
+			IDLE_THREAD_KEEP_ALIVE = Integer.parseInt(dic.getDescribe());
+		}
+		
+//		BlockingQueue<Runnable> queue = new ArrayBlockingQueue<Runnable>(QUEUE_SIZE);
+//		this.threadPool = new ThreadPoolExecutor(MIN_POOLSIZE,
+//				MAX_POOLSIZE,
+//				IDLE_THREAD_KEEP_ALIVE, TimeUnit.SECONDS,
+//				queue);
+		//TODO  更改阻塞队列为无限制连接池 @dongfeng.zhang
+		this.threadPool=Executors.newCachedThreadPool();
+		logger.debug("PolicyThreadPoolServiceImpl afterPropertiesSet 调用结束");
+	}
+
+	public ExecutorService getThreadPool() {
+		return threadPool;
+	}
+
+	public void setThreadPool(ExecutorService threadPool) {
+		this.threadPool = threadPool;
+	}
+}
+
+
+
+
+
+
+
+
+/**
+	 * 获取生成文件名
+	 * @param reqModel2
+	 * @return
+	 */
+	@ResponseBody
+	@RequestMapping(value = "/getFileName", consumes = "application/json", produces = "application/json", method = RequestMethod.POST)
+	public RespModel getFileName(@RequestBody ReqModel2 reqModel2){
+		AppConfig config = AppContext.getConf(CommonConstant.SERVICEACTIVITY_EXCEL_PATH_CODE, CommonConstant.SERVICEACTIVITY_EXCEL_PATH_CATE_CODE, AppContext.getCurrentSysType());
+		String filePath = config.getValue();
+		if(!filePath.endsWith("/")) {
+			filePath += File.pathSeparator;
+		}
+		filePath +=AppContext.getCurrentUserName()+"-"+System.currentTimeMillis()+".xls";
+		createThread(reqModel2.getQueryParams(), filePath);
+		return new RespModel(filePath);
+	}
+	
+	/**
+	 * 创建生成文件的线程
+	 * @param queryParams
+	 */
+	private void createThread(final QueryParams queryParams, final String filePath) {
+		ExcelStateMap.put(filePath, "Ready");
+		Runnable runnable = new Runnable() {
+			
+			@Override
+			public void run() {
+				cleanPreMap();
+				ExcelStateMap.put(filePath, "Begin");
+				String actType = (String)queryParams.get("actType");
+				queryParams.put("export", 1);//设置导出标识
+				ServiceActivityVO vo = ServiceActivityQueryVO.getServiceActivityVO(actType);
+				List<ServiceActivityVO> list = getAllActivityList(queryParams);
+				List<ServiceActivityVO> resultList = activityService.getRelatedServiceRequest(list, actType);
+				ByteArrayOutputStream out = new ByteArrayOutputStream();
+				ExportExcel<ServiceActivityVO> export = new ExportExcel<ServiceActivityVO>();
+				export.export(vo.getTitle(), vo.getHeadColumn(), resultList, vo.getProperties(), out, true);
+				byte[] bytes = out.toByteArray();
+				File file = new File(filePath);
+				File parentFile = file.getParentFile();
+				if(!parentFile.exists()) {
+					parentFile.mkdirs();
+				}
+				try {
+					FileOutputStream outputStream = new FileOutputStream(file);
+					outputStream.write(bytes);
+					outputStream.flush();
+					outputStream.close();
+					ExcelStateMap.put(filePath, "Complete");
+				} catch (Exception e) {
+					log.warn("生成文件失败,具体原因如下：", e);
+					ExcelStateMap.put(filePath, "Error");
+				}
+			}
+		};
+		new Thread(runnable).start();
+	}
+
+
+
+
