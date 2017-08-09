@@ -1,0 +1,229 @@
+--数据库字符集
+SIMPLIFIED CHINESE_CHINA.AL32UTF8
+SIMPLIFIED CHINESE_CHINA.ZHS16GBK
+
+select userenv('language') nls_lang from dual;
+
+
+select file_name from dba_data_files;
+
+select djr.SID,
+       djr.JOB,
+       dj.LOG_USER,
+       dj.PRIV_USER,
+       dj.WHAT,
+       to_char(djr.LAST_DATE, 'MM/DD'),
+       substr(djr.LAST_SEC, 1, 5),
+       to_char(djr.this_date, 'MM/DD'),
+       substr(djr.THIS_SEC, 1, 5),
+       djr.FAILURES
+
+  from sys.dba_jobs dj, sys.dba_jobs_running djr
+ where djr.JOB = dj.job;
+
+
+select * from all_db_links;
+
+
+ pkg_li_cout_app.pro_cmp_phone_ocs_analyse
+
+select * from user_objects t where t.OBJECT_TYPE='TABLE';
+
+select * from dba_users;
+
+--查看当前用户的表
+select * from tab;
+
+
+select * from sys.dba_jobs;
+
+select trunc(sysdate  )  from dual;
+
+select * from t_li_cout_pay_sms;
+
+select * from t_li_sms_send;
+
+
+--增加字段  修改字段
+alter table XXX add   xxx 数据类型;
+alter table XXX modify xxx 数据类型;
+
+
+--表授权  包授权
+GRANT EXECUTE,DEBUG ON PKG_ETL_JOBCTL(包名) TO liferead(账户);
+CREATE OR REPLACE SYNONYM liferead.PKG_ETL_JOBCTL FOR PKG_ETL_JOBCTL(同义词);
+
+--函数授权
+GRANT EXECUTE,DEBUG ON FUN_GET_PHONE_BODY TO liferead;
+CREATE OR REPLACE SYNONYM liferead.FUN_GET_PHONE_BODY FOR FUN_GET_PHONE_BODY;
+
+--建表，表授权
+-- Create table
+create table 表名
+(
+  列名1                    NUMBER(12) not null,
+  列名2                   NUMBER(12),
+
+)
+tablespace LIFE;
+-- Add comments to the table 表 表字段 注释
+comment on table 表名
+  is '永久失效前回访及失效保单（新）回访业务子表';
+-- Add comments to the columns
+comment on column 表名.列名
+  is '数据编号';
+
+--加主键 
+-- Create/Recreate indexes
+create index IDX_T_LI_CIN_SRT_MAIL_SUBMIT on T_LI_CIN_SRT_MAIL_SUBMIT (SRT_ID)
+  tablespace LIFE;
+-- Create/Recreate primary, unique and foreign key constraints 加索引
+alter table T_LI_CIN_SRT_MAIL_SUBMIT
+  add constraint PK_T_LI_CIN_SRT_MAIL_SUBMIT primary key (MAIL_SUBMIT_id)
+  using index
+  tablespace LIFE;
+
+-- Create/Recreate indexes 创建索引  生产加  online
+create index 索引名 on 表名 (字段)
+  tablespace 表空间 online; 
+
+--授权 
+GRANT SELECT ON 同义词 TO liferead;
+GRANT SELECT,INSERT,UPDATE,DELETE ON 同义词 TO lifeapp;
+GRANT SELECT,INSERT,UPDATE,DELETE ON 同义词 TO lifemod;
+GRANT SELECT,INSERT,UPDATE,DELETE ON 同义词 TO lifedml;
+--create synonym 同义词
+CREATE OR REPLACE SYNONYM liferead.表名 FOR 同义词;
+CREATE OR REPLACE SYNONYM lifeapp.表名 FOR 同义词;
+CREATE OR REPLACE SYNONYM lifemod.表名 FOR 同义词;
+CREATE OR REPLACE SYNONYM lifedml.表名 FOR 同义词;
+
+
+--序列需授权
+-- Create sequence
+create sequence SEQ_LI_CIN_SRT_MAIL_SUBMIT
+minvalue 10000000000
+maxvalue 999999999999
+start with 10000000000
+increment by 1
+cache 20;
+
+--create synonym
+CREATE OR REPLACE SYNONYM COMMON.SEQ_LI_CIN_SRT_MAIL_SUBMIT FOR SEQ_LI_CIN_SRT_MAIL_SUBMIT;
+CREATE OR REPLACE SYNONYM lifeapp.SEQ_LI_CIN_SRT_MAIL_SUBMIT FOR SEQ_LI_CIN_SRT_MAIL_SUBMIT;
+CREATE OR REPLACE SYNONYM lifedml.SEQ_LI_CIN_SRT_MAIL_SUBMIT FOR SEQ_LI_CIN_SRT_MAIL_SUBMIT;
+CREATE OR REPLACE SYNONYM lifemod.SEQ_LI_CIN_SRT_MAIL_SUBMIT FOR SEQ_LI_CIN_SRT_MAIL_SUBMIT;
+CREATE OR REPLACE SYNONYM liferead.SEQ_LI_CIN_SRT_MAIL_SUBMIT FOR SEQ_LI_CIN_SRT_MAIL_SUBMIT;
+-- Grant/Revoke object privileges 序列授权
+grant select on SEQ_LI_CIN_SRT_MAIL_SUBMIT to COMMON;
+grant select on SEQ_LI_CIN_SRT_MAIL_SUBMIT to LIFEAPP;
+grant select on SEQ_LI_CIN_SRT_MAIL_SUBMIT to LIFEDML;
+grant select on SEQ_LI_CIN_SRT_MAIL_SUBMIT to LIFEMOD;
+grant select on SEQ_LI_CIN_SRT_MAIL_SUBMIT to LIFEREAD;
+
+
+--job  跑批  并发跑
+DECLARE
+  v_job NUMBER;
+BEGIN
+  dbms_job.submit(v_job,
+                  q'[
+DECLARE
+--打标记刷新
+  o_result VARCHAR2(4000);
+BEGIN
+  FOR curget IN (SELECT associated_id
+                 FROM   t_ana_run2
+                 WHERE  flg IS NULL
+                 AND    substr(associated_id, 6, 1) IN ('&1', '&2')) LOOP
+    pkg_li_cout_analyse.pro_save_analyse(curget.associated_id,
+                                         '1',
+                                         o_result);
+    UPDATE t_ana_run2 tt
+    SET    tt.flg = '1'
+    WHERE  tt.associated_id = curget.associated_id;
+    COMMIT;
+  END LOOP;
+END;
+]',
+                  SYSDATE);
+  COMMIT;
+  dbms_job.run(v_job);
+END;
+/
+exit;
+
+--调用job案例  带in参数 out参数
+--跑job
+--执行后job随机的代号是个out型参数 
+--what 需要执行的pl/sql块 是varchar2型
+--next_date  job开始时间 date型
+--interval  下次执行时间 时间间隔 varchar2型
+--注意  关于oralce  字符串中 定义的字符串 转义用  两个单引号
+declare
+ jobid number;
+begin
+  sys.dbms_job.submit(job =>jobid, 
+                      what =>'DECLARE     
+  P_RESULT VARCHAR2(10);  --这个为out型参数
+BEGIN
+  -- 同步IVR满意度到CALL_AGENT数据库
+  PKG_P17_BACKGROUND.PRO_SYNC_ASSESSMENT(PD_DATE => sysdate,
+                                      PV_RESULT=>P_RESULT);
+END;',
+                      next_date => sysdate,
+                      interval => 'to_date(to_char(Sysdate+1/24,''yyyy-mm-dd hh24''),''yyyy-mm-dd hh24'')+10/1440');
+  commit;
+end;
+/
+
+
+/***********************
+    查看表被锁
+***********************/
+--查看被锁的表
+SELECT O.OBJECT_NAME,o.*,l.*
+
+FROM V$LOCKED_OBJECT L, --需要授权 grant select any dictionary to ccframe;
+     DBA_OBJECTS     O
+WHERE L.OBJECT_ID = O.OBJECT_ID
+        /* AND O.OBJECT_NAME = 'T_CC_L4_PI_TASK_CS_CONFIG';*/ --表名
+
+--查看锁的进程ID         
+select b.USERNAME,b.SID,b.SERIAL#,logon_time
+  from V$LOCKED_OBJECT a, v$session b
+where a.SESSION_ID = b.SID
+ order by b.LOGON_TIME;
+
+--杀进程  'sid的值,SERIAL#的值'
+alter system kill session '1045,26454';
+
+
+--sqlldr加载删日志
+delete from P17_etl_log_t
+where log_date> sysdate -1
+and period = '20160719' ;
+
+
+--时间
+select concat(to_char(sysdate, 'yyyy') ||
+              to_char(add_months(sysdate, -2), '-MM-'),
+              '01 00:00:00') start_time,
+       concat(to_char(sysdate, 'yyyy') ||
+              to_char(add_months(sysdate, -2), '-MM-') ||
+              to_char(LAST_DAY(SYSDATE), 'DD'),
+              ' 23:59:59') END_TIME
+  FROM DUAL;
+
+--修改dblink密码
+ alter database link dblink名 connect to 用户名 identified by "密码";
+
+create database link RPT_CM_LINK connect to COMMONREAD identified by "Szsm*3355" using '(DESCRIPTION =
+    (ADDRESS_LIST =
+      (ADDRESS = (PROTOCOL = TCP)(HOST =10.182.191.33)(PORT = 1521))
+    )
+    (CONNECT_DATA =
+      (SERVICE_NAME = life)
+    )
+  )';
+
