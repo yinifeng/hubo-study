@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+	<!-- 静态工厂方法 -->
+	<bean id="staticCar" class="com.hubo.spring.factorybean.StaticFactory"
+		factory-method="getObject">
+		<constructor-arg value="audi"></constructor-arg>
+	</bean>
+
+	<!-- 配置工厂的实例 -->
+	<bean id="carFactory" class="com.hubo.spring.factorybean.InstanceFactory"></bean>
+
+	<bean id="instanceCar" factory-bean="carFactory" factory-method="getObject">
+		<constructor-arg value="bmw"></constructor-arg>
+	</bean>
+	
+	<bean id="carFactoryBean" class="com.hubo.spring.factorybean.CarFactoryBean">
+		<property name="name" value="auto"></property>
+	</bean>
+</beans>	

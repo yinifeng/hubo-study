@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+	<bean id="beanCycle" class="com.hubo.spring.beancycle.BeanCycle" init-method="init" destroy-method="destroy">
+		<property name="name" value="tom"></property>
+	</bean>
+	
+	<bean id="myBeanPostProcessor" class="com.hubo.spring.beancycle.MyBeanPostProcessor"></bean>
+	
+	<bean id="annationBeanCycle" class="com.hubo.spring.beancycle.AnnationBeanCycle" />
+	
+	<bean id="springBeanCycle" class="com.hubo.spring.beancycle.SpringBeanCycle"></bean>
+</beans>	

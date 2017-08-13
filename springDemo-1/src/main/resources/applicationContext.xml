@@ -11,4 +11,10 @@
 	<bean id="helloWorld" class="com.hubo.spring.beans.HelloWorld">
 		<property name="name" value="spring"></property>
 	</bean>
+	
+	<bean id="testInit" class="com.hubo.spring.test1.TestInit"></bean>
+	
+	<bean id="testDestroy" class="com.hubo.spring.test1.TestDestroy"></bean>
+
+	<bean id="testFactoryBean" class="com.hubo.spring.test1.TestFactoryBean"></bean>
 </beans>
