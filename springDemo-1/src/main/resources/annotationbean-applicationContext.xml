@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+	
+	<context:component-scan base-package="com.hubo.spring.annotationbean"></context:component-scan>
+	
+	<!-- 1、@Value("#{testvalue['value.name']}")这种形式的配置中有“tesvalue”，
+	其实它指定的是配置文件的加载对象 -->
+	<bean id="testvalue"  class="org.springframework.beans.factory.config.PropertiesFactoryBean">
+		<property name="locations">
+			<list>
+				<value>classpath:/conf/testvalue.properties</value>
+			</list>
+		</property>
+	</bean>
+	
+	<!-- 2、@Value("${t1.msgname}")这种形式不需要指定具体加载对象，
+	这时候需要一个关键的对象来完成PreferencesPlaceholderConfigurer -->
+ 	<bean id="propertyConfig" class="org.springframework.beans.factory.config.PreferencesPlaceholderConfigurer">
+		<property name="location">
+			<!-- <value>conf/carvalue.properties</value> -->
+			<value>conf/testvalue.properties</value>
+		</property>
+	</bean> 
+	
+
+</beans>
