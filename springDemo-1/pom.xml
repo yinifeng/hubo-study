@@ -1,11 +1,12 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <groupId>com.hubo</groupId>
-  <artifactId>springDemo-1</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>com.hubo</groupId>
+	<artifactId>springDemo-1</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
 
 	<dependencies>
-	
+
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
@@ -14,14 +15,14 @@
 			<!-- scope作用域 基本的3个 test complied provided test 测试有效 不参与打包 complied 编译打包 
 				都有效 参与打包 默认作用域范围 provided 编译时有效 不打包 不部署 运行时由web容器提供 -->
 		</dependency>
-		
+
 		<!-- slf4j log4j的实现日志 -->
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-log4j12</artifactId>
 			<version>1.7.2</version>
 		</dependency>
-	
+
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-core</artifactId>
@@ -39,19 +40,25 @@
 			<artifactId>spring-context</artifactId>
 			<version>4.0.2.RELEASE</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-test</artifactId>
 			<version>4.0.2.RELEASE</version>
 		</dependency>
+		<!-- aop 推荐aspects -->
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-aspects</artifactId>
+			<version>4.0.2.RELEASE</version>
+		</dependency>
 
-	
+
 	</dependencies>
 
 	<build>
 		<defaultGoal>compile</defaultGoal>
 	</build>
-  
-  
+
+
 </project>
